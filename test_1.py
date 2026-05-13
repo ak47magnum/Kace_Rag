@@ -10,7 +10,7 @@
 # from langchain_community.agent_toolkits import create_sql_agent
 # from langchain_openai import ChatOpenAI
 # from langchain_ollama import ChatOllama
-# from sql_data import sql_query
+# from sql_data_assets import sql_query
 # from dotenv import load_dotenv
 
 # load_dotenv()
@@ -71,7 +71,7 @@
 # from langchain_community.utilities import SQLDatabase
 # from langchain_community.agent_toolkits import create_sql_agent
 # from langchain_ollama import ChatOllama
-# from sql_data import sql_query
+# from sql_data_assets import sql_query
 # from dotenv import load_dotenv
 
 # load_dotenv()
@@ -152,7 +152,7 @@ from sqlalchemy import create_engine, text
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_ollama import ChatOllama
-from sql_data import sql_query
+from sql_data_assets import sql_query
 from dotenv import load_dotenv
 import os
 

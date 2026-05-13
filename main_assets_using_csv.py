@@ -1,0 +1,148 @@
+
+# =======================================================================================================
+### Working rag using CSV. Using CSV More efficient than a call to the db each time the page is refreshed
+# =======================================================================================================
+
+
+import re
+import streamlit as st
+import pandas as pd
+import os
+import time
+from sqlalchemy import create_engine, text
+from langchain_community.utilities import SQLDatabase
+from langchain_community.agent_toolkits import create_sql_agent
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+from sql_data_assets import sql_query
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# --- CONFIGURATION ---
+CSV_FILE = "kace_assets.csv"
+REFRESH_INTERVAL = 6 * 3600  # 6 hours in seconds
+st.set_page_config(page_title="KACE Asset AI (Knowledge Base)", layout="wide")
+
+# --- HELPER FUNCTIONS ---
+def needs_csv_refresh(csv_path: str, interval: int) -> bool:
+    """Check if the CSV needs refreshing (missing or older than interval)."""
+    if not os.path.exists(csv_path):
+        return True
+    last_modified = os.path.getmtime(csv_path)
+    return (time.time() - last_modified) > interval
+
+def refresh_csv():
+    """Run KACE query, normalize data, and overwrite the CSV file."""
+    # Connect to KACE DB using env vars
+    DB_USER = os.environ.get("DB_USER")
+    DB_PASS = os.environ.get("DB_PASS")
+    DB_HOST = os.environ.get("DB_HOST")
+    DB_NAME = os.environ.get("DB_NAME")
+
+    kace_engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:3306/{DB_NAME}")
+
+    # Extract data using the same query from sql_data.py
+    with kace_engine.connect() as conn:
+        df = pd.read_sql(text(sql_query.replace("%", "%%")), conn)
+
+    # --- NORMALIZE DATA (same as test_2.py) ---
+    # Clean column names (lowercase, underscores, no special chars)
+    new_cols = [c.replace(' ', '_').lower() for c in df.columns]
+    new_cols = [re.sub(r'[^a-z0-9_]', '', c) for c in new_cols]
+    df.columns = [c.replace('__', '_').strip('_') for c in new_cols]
+
+    # Clean cost column (remove symbols, convert to numeric)
+    cost_col = next((c for c in df.columns if 'cost' in c), None)
+    if cost_col:
+        df[cost_col] = df[cost_col].replace(r'[^\d.]', '', regex=True)
+        df[cost_col] = pd.to_numeric(df[cost_col], errors='coerce').fillna(0.0)
+
+    # Lowercase all string data for case-insensitive matching
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].astype(str).str.lower()
+
+    # Overwrite the existing CSV file
+    df.to_csv(CSV_FILE, index=False)
+    return df
+
+# --- DATA LOADING (CSV-backed) ---
+# Check if CSV needs refresh on app start
+if needs_csv_refresh(CSV_FILE, REFRESH_INTERVAL):
+    st.info("CSV data is stale. Refreshing from KACE database...")
+    refresh_csv()
+    st.success("CSV data refreshed successfully.")
+
+    # # Clear cached DB if it exists (force reload from new CSV)  
+    # st.cache_resource.clear() ## claude says its not needed/
+
+@st.cache_resource
+def get_unified_db():
+    """Load data from CSV and create a SQLDatabase for the agent."""
+    # Read the normalized CSV (already cleaned by refresh_csv)
+    raw_df = pd.read_csv(CSV_FILE)
+
+    # Create local SQLite DB from CSV data (same as before, but data comes from CSV)
+    local_engine = create_engine("sqlite:///local_kace.db")
+    raw_df.to_sql("kace_assets", local_engine, index=False, if_exists='replace')
+
+    return SQLDatabase(local_engine), raw_df
+
+# Initialize data
+try:
+    db, raw_df = get_unified_db()
+except FileNotFoundError:
+    st.error(f"CSV file {CSV_FILE} not found. Refreshing now...")
+    refresh_csv()
+    db, raw_df = get_unified_db()
+
+# --- CHAT UI (same as test_2.py) ---
+st.title("🛡️  KACE SMA Intelligence Portal (Knowledge Base)")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# --- AGENT SETUP ---
+# llm = ChatOllama(model="gemma4:e4b", temperature=0) ## Really good local model  ###************************************************************
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+system_prompt = """
+You are an expert KACE SMA data analyst.
+The database 'kace_assets' is fully normalized to lowercase.
+All string-based values and column names are in lowercase.
+Always use the column names exactly as they appear in the schema (using underscores).
+Note that when the user asks for 'Cost Account' or 'Cost Accounts', search the 'cost_account' column.
+When the user asks for 'Asset Name' or 'asset names', search the 'asset_name' column.
+when the user asks for 'Assigned User' or 'assigned users', search the 'assigned_user' column.
+Also when the user asks for user or users, search the 'assigned_user' column.
+Also when a user asks for 'Unit Cost' or 'cost', search the 'unit_cost' column.
+Search all columns for a match with the users search. Not only the 'Item' column.
+Also when asked about the count of email accounts, search the rows in the 'item' column for 'email account' or 'email accounts' 
+"""
+
+agent_executor = create_sql_agent(
+    llm=llm,
+    db=db,
+    verbose=True,
+    agent_type="openai-tools",
+    suffix=system_prompt
+)
+
+# --- USER INTERACTION ---
+if prompt := st.chat_input("Ask about assets (e.g., How many assets in 11.0.001.00?)"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        normalized_query = prompt.lower()
+        response = agent_executor.invoke({"input": normalized_query})
+        answer = response["output"]
+        st.markdown(answer)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})

@@ -13,7 +13,7 @@
 # from langchain_community.utilities import SQLDatabase
 # from langchain_community.agent_toolkits import create_sql_agent
 # from langchain_ollama import ChatOllama
-# from sql_data import sql_query
+# from sql_data_assets import sql_query
 
 # # --- CONFIG ---
 # st.set_page_config(page_title="KACE AI Agent", layout="wide")
@@ -103,7 +103,7 @@
 # from langchain_community.utilities import SQLDatabase
 # from langchain_community.agent_toolkits import create_sql_agent
 # from langchain_ollama import ChatOllama
-# from sql_data import sql_query
+# from sql_data_assets import sql_query
 # from dotenv import load_dotenv
 
 # load_dotenv()
@@ -220,8 +220,9 @@ import os
 from sqlalchemy import create_engine, text
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import create_sql_agent
-from langchain_ollama import ChatOllama
-from sql_data import sql_query
+# from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+from sql_data_assets import sql_query
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -285,7 +286,8 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # --- AGENT SETUP ---
-llm = ChatOllama(model="gemma4:e4b", temperature=0)
+# llm = ChatOllama(model="gemma4:e4b", temperature=0)
+llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0)
 
 system_prompt = """
 You are an expert KACE SMA data analyst. 
