@@ -14,6 +14,7 @@ from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
+from langchain_openrouter import ChatOpenRouter
 # from sql_data_assets import sql_query
 from sql_data_tickets import query_tickets
 from dotenv import load_dotenv
@@ -115,11 +116,14 @@ for message in st.session_state.messages:
 # --- AGENT SETUP ---
 # llm = ChatOllama(model="gemma4:e4b", temperature=0) ## Really good local model  ###************************************************************
 # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0) ## Cheapest option. Works! # But have noticed some mistakes if query is complex 
-llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)  ## Works!
+# llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)  ## Works!
 # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY
+llm = ChatOpenRouter(model="deepseek/deepseek-v4-flash", temperature=0)
+# llm = ChatOpenRouter(model="openai/gpt-oss-120b", temperature=0)  ### SO FAR... REALLY GOOD!!! ANF CHEAP....!!!
+
 
 system_prompt = """
-You are an expert KACE SMA data analyst.
+You are an expert KACE SMA data analyst and a friendly assistant.
 The database 'kace_tickets' is fully normalized to lowercase.
 All string-based values and column names are in lowercase.
 Always use the column names exactly as they appear in the schema (using underscores).
@@ -127,6 +131,12 @@ Always use the column names exactly as they appear in the schema (using undersco
 When a user asks for a count of tickets in a specific queue, translate the question into a SQL COUNT query that filters on the queue_name column.
 Normalize the queue name in the user's question (lowercase, trim whitespace) before comparing it to the stored values.
 Provide the count result after executing the query.
+when the user asks about the 'requisition queue', this is a reference to the tickets with queue_name = 'ALL JBN: IT-REQUISITION'.
+when the user asks about the 'support queue', this is a reference to the tickets with queue_name = 'ALL JBN : REQUEST IT SUPPORT HELP'.
+
+If the user greets you (e.g., "hi", "hello", "hey", "good morning"), responds with a friendly greeting and asks how you can help them with ticket data. Do NOT try to query the database for greetings.
+If the user asks something unrelated to the ticket data, politely let them know you specialize in KACE ticket analysis.
+
 """
 
 agent_executor = create_sql_agent(
@@ -166,3 +176,5 @@ if prompt := st.chat_input("Ask about assets (e.g., How many assets in 11.0.001.
 
 ###  how many tickets in the queue 'all jbn : request it support help'? ✅
 ###  how many tickets did we have in each queue , in january 2026? ✅
+
+### how many tickets in the support queue did we have in the first quarter of 2026?
