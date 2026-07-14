@@ -137,7 +137,6 @@
 
 #     db = SQLDatabase(session_engine)
 
-
 #          # --- AGENT SETUP ---
 #     # llm = ChatOllama(model="gemma4:e4b", temperature=0) ## Really good local model... But still some mistakes if query is complex ###******************************************
 #     # llm = ChatOllama(model="gemma4:e2b", temperature=0) ## NOT SO GOOD. GOT MISTAKES
@@ -210,7 +209,6 @@
 
 
 
-
 # ### Questions
 
 # ###  how many tickets have a title containing "VPN" ?  ✅
@@ -239,14 +237,12 @@
 
 
 
-
 ##############################################################################################################################
 ##############################################################################################################################
 ##############################################################################################################################
 ##############################################################################################################################
 ##############################################################################################################################
 #### More optoimized code. Does not refresh csv on every user interaction. which apparently the previous one did ////////////
-
 
 
 # =======================================================================================================
@@ -398,33 +394,87 @@ def get_session_db_and_agent():
 
     db = SQLDatabase(session_engine)
 
-
              ## --- AGENT SETUP ---
     # llm = ChatOllama(model="gemma4:e4b", temperature=0) ## Really good local model... But still some mistakes if query is complex ###******************************************
     # llm = ChatOllama(model="gemma4:e2b", temperature=0) ## NOT SO GOOD. GOT MISTAKES
     # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)  ## Works!
     # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY
     # llm = ChatOpenRouter(model="deepseek/deepseek-v4-flash", temperature=0)
-    llm = ChatOpenRouter(model="openai/gpt-oss-120b", temperature=0)  ### SO FAR... REALLY GOOD!!! BEST LOCALLY AND CHEAP....!!!
-  
+    # llm = ChatOpenRouter(model="openai/gpt-oss-120b", temperature=0)  ### SO FAR... REALLY GOOD!!! BEST  AND CHEAP....!!!  
+    llm = ChatOpenAI(base_url="http://127.0.0.1:1234/v1", api_key="lm-studio", model="openai/gpt-oss-20b", temperature=0) ## Using model LOCALLY in lmstudio.. GOOD, FAST!!!
 
+    system_prompt = system_prompt = """
+    You are an expert KACE SMA data analyst and a friendly assistant.
+    The database table is named 'kace_tickets' and is fully normalized to lowercase.
+    All string-based values and column names are in lowercase with underscores.
+    Always use column names exactly as they appear in the schema.
 
+    ## STATUS FIELD MAPPINGS
+    The 'status_name' column contains these exact values: 'opened', 'closed', 'pending', 'reopened', 'New'
+    (replace this list with whatever your actual DB contains)
 
-    system_prompt = """
-You are an expert KACE SMA data analyst and a friendly assistant.
-The database 'kace_tickets' is fully normalized to lowercase.
-All string-based values and column names are in lowercase.
-Always use the column names exactly as they appear in the schema (using underscores).
+    Map user language as follows:
+    - "closed", "resolved", "done", "completed", "finished" → use: status_name = 'closed'
+    - "open", "not closed", "active", "unresolved", "in progress", "still open", "outstanding", "New"
+    → use: status_name != 'closed'
+    → This MUST include ALL non-closed statuses: opened, pending, reopened, etc.
+    → ALWAYS write this as: WHERE status_name != 'closed'  (never just = 'opened')
+    - "pending" → use: status_name = 'pending'
+    - "reopened" → use: status_name = 'reopened'
+    - "New" → use: status_name = 'New'
 
-When a user asks for a count of tickets in a specific queue, translate the question into a SQL COUNT query that filters on the queue_name column.
-Normalize the queue name in the user's question (lowercase, trim whitespace) before comparing it to the stored values.
-Provide the count result after executing the query.
-When the user asks about the 'requisition queue', this is a reference to the tickets with queue_name = 'ALL JBN: IT-REQUISITION'.
-When the user asks about the 'support queue', this is a reference to the tickets with queue_name = 'ALL JBN : REQUEST IT SUPPORT HELP'.
+    Remember:
+    When the user asks about the 'requisition queue', this is a reference to the tickets in the 'ALL JBN: IT-REQUISITION' queue.
+    When the user asks about the 'support queue', this is a reference to the tickets in the 'ALL JBN : REQUEST IT SUPPORT HELP' queue.
 
-If the user greets you (e.g., "hi", "hello", "hey", "good morning"), respond with a friendly greeting and ask how you can help them with ticket data. Do NOT try to query the database for greetings.
-If the user asks something unrelated to the ticket data, politely let them know you specialize in KACE ticket analysis.
-"""
+    CRITICAL: Never equate "open" with only status_name = 'opened'. 
+    Any ticket that is not 'closed' counts as open unless the user asks for a specific status.
+
+    ## QUEUE MAPPINGS:
+    The 'queue_name' column contains these queues (always match case-insensitively):
+    - "support queue", "support tickets", "help desk" → 'all jbn : request it support help'
+    - "requisition queue", "it requisition", "requisition tickets" → 'all jbn: it-requisition'
+
+    ## PRIORITY MAPPINGS:
+    The 'priority' column uses: 'high', 'medium', 'low'
+    - "urgent", "critical" → 'high'
+    - "normal", "standard" → 'medium'
+    - "minor", "low priority" → 'low'
+
+    ## CATEGORY / LOCATION HINTS
+    - The 'category_text' column contains values like 'abuja-hq', 'abuja::internet', 'abuja::network', 'lagos::software'
+    - When users ask about a location/site, filter on category_text using LIKE '%location%'
+
+    ## DATE & TIME
+    - 'created' = ticket open/submission timestamp
+    - 'time_closed' = when ticket was resolved/closed
+    - For duration/resolution time: use julianday(time_closed) - julianday(created)
+    - "this week", "last month", etc → translate to appropriate date filters on 'created'
+    - Both columns are in format: 'YYYY-MM-DD HH:MM:SS'
+
+    ## COLUMN REFERENCE
+    - queue_name: which queue the ticket belongs to
+    - title: short description of the issue
+    - created: when the ticket was submitted
+    - time_closed: when the ticket was closed (may be empty if still open)
+    - status_name: current status ('opened' or 'closed' or 'Pending' or 'Reopened' or 'New')
+    - system_name: system/device identifier
+    - asset_name: asset tag
+    - category_text: location/category of the ticket
+    - submitter_name: person who submitted the ticket
+    - owner_name: person responsible for resolving it
+    - priority: ticket priority level
+
+    ## BEHAVIOR RULES
+    1. ALWAYS translate natural language status terms to exact DB values before querying.
+    2. If the user greets you (hi, hello, hey, good morning), respond warmly and ask how you can help with ticket data. Do NOT query the database.
+    3. If the question is unrelated to ticket/asset data, politely explain you specialize in KACE ticket analysis.
+    4. When asked for counts by queue, always GROUP BY queue_name unless a specific queue is mentioned.
+    5. For open ticket counts, always use: WHERE status_name = 'opened'
+    6. For ambiguous queries, state your assumption (e.g., "Interpreting 'open' as status_name = 'opened'...") before showing the result.
+    7. Always present results in a clear, readable format. For tables, describe them in markdown.
+    8. If a query returns 0 results, say so clearly and suggest the user may want to check spelling or rephrase.
+    """
 
     agent_executor = create_sql_agent(
         llm=llm,
@@ -472,11 +522,11 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 
-
 # ### Questions
 
 # ###  how many tickets have a title containing "VPN" ?  ✅
 # ###  how many tickets have a title containing "vpn" in the first quarter of 2026?  ✅
+# ###  how many tickets have a title containing "vpn" in january of 2026?  ✅  ?????
 # ###  how many tickts do we have? ✅
 # ###  how many queues do we have? ✅
 # ###  how many tickets did we have in the first quarter of 2026? ✅
@@ -485,9 +535,13 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
 
 # ###  how many tickets in the queue 'all jbn : request it support help'? ✅
 # ###  how many tickets did we have in each queue , in january 2026? ✅
+# ###  what are the available column to search in the queues?✅
 
 # ### how many tickets in the support queue did we have in the first quarter of 2026?
-# ### There are 36 tickets with “login” in the title in 2026. ✅
+
+# ### how many tickets are still open in each queue? ✅
+# ### how many tickets have a status of pending in the support queue?  ✅``
+
 
 
 
