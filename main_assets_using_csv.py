@@ -671,3 +671,14 @@ if prompt := st.chat_input("Ask about assets (e.g., How many assets in 11.0.001.
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
+
+
+
+
+############### QUESTION AND ANSWER EXAMPLES (Verify independently please) #################################
+
+# Q: how manty computers do we have?
+# A: There are 1 656 computers in the database.
+
+# Q:how many sap-4hana are there?
+# A:There are 179 assets in the database whose item category is sap‑4hana.
