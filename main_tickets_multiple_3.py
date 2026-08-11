@@ -398,10 +398,12 @@ def get_session_db_and_agent():
     # llm = ChatOllama(model="gemma4:e4b", temperature=0) ## Really good local model... But still some mistakes if query is complex ###******************************************
     # llm = ChatOllama(model="gemma4:e2b", temperature=0) ## NOT SO GOOD. GOT MISTAKES
     # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)  ## Works!
-    # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY
+    # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!!
+    # llm = ChatOpenAI(model="gpt-5.6-luna", temperature=0, reasoning_effort="none") ### ????? seem to be having api issues and errors...'👎❌❌
     # llm = ChatOpenRouter(model="deepseek/deepseek-v4-flash", temperature=0)
-    # llm = ChatOpenRouter(model="openai/gpt-oss-120b", temperature=0)  ### SO FAR... REALLY GOOD!!! BEST  AND CHEAP....!!!  
-    llm = ChatOpenAI(base_url="http://127.0.0.1:1234/v1", api_key="lm-studio", model="openai/gpt-oss-20b", temperature=0) ## Using model LOCALLY in lmstudio.. GOOD, FAST!!!
+    # llm = ChatOpenRouter(model="~deepseek/deepseek-v4-flash-latest", temperature=0)  ## always redirects to latest deepseek flash model 
+    llm = ChatOpenRouter(model="openai/gpt-oss-120b", temperature=0)  ### SO FAR... REALLY GOOD!!! BEST  AND CHEAP....!!!  
+    # llm = ChatOpenAI(base_url="http://127.0.0.1:1234/v1", api_key="lm-studio", model="openai/gpt-oss-20b", temperature=0) ## Using model LOCALLY in lmstudio.. GOOD, FAST!!!
 
     system_prompt = system_prompt = """
     You are an expert KACE SMA data analyst and a friendly assistant.
@@ -480,7 +482,8 @@ def get_session_db_and_agent():
         llm=llm,
         db=db,
         verbose=True,
-        agent_type="openai-tools",
+        # agent_type="openai-tools",
+        agent_type="tool-calling",  ##  "tool-calling"  is recommended in the documentation over the legacy "openai-tools"
         suffix=system_prompt
     )
 
@@ -541,6 +544,8 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
 
 # ### how many tickets are still open in each queue? ✅
 # ### how many tickets have a status of pending in the support queue?  ✅``
+# ## how many tickets do we have between april 1st 2026 and june 30th 2026? Break it down by queues.
+# ## how many tickets did the owner "kabir, amin" get in 2026?
 
 
 
