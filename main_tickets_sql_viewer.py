@@ -266,6 +266,7 @@ from langchain_community.agent_toolkits import create_sql_agent
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_openrouter import ChatOpenRouter
+from langchain_core.callbacks import BaseCallbackHandler
 from sql_data_tickets import query_tickets
 from dotenv import load_dotenv
 
@@ -364,6 +365,27 @@ def load_csv() -> pd.DataFrame:
         raw_df[col] = raw_df[col].astype(str).str.strip()
     return raw_df
 
+# --- SQL CAPTURE: listens for the agent's sql_db_query tool calls ---
+class SQLCaptureHandler(BaseCallbackHandler):
+    """Captures the SQL the agent generates so we can show it in the UI.
+    The SQL text is passed as `input_str` when the 'sql_db_query' tool starts.
+    """
+
+    def __init__(self):
+        self.queries = []           # list of SQL strings the agent ran
+        self._pending_query = None  # SQL whose result we haven't received yet
+
+    def on_tool_start(self, serialized, input_str, *, run_id=None, **kwargs):
+        name = serialized.get("name") if serialized else None
+        if name == "sql_db_query":
+            self._pending_query = input_str  # input_str IS the SQL text
+
+    def on_tool_end(self, output, *, run_id=None, **kwargs):
+        if self._pending_query is not None:
+            self.queries.append(self._pending_query)
+            self._pending_query = None
+
+
 # --- PER-SESSION DB + AGENT SETUP ---
 def get_session_db_and_agent():
     """
@@ -399,13 +421,14 @@ def get_session_db_and_agent():
     # llm = ChatOllama(model="gemma4:e2b", temperature=0) ## NOT SO GOOD. GOT MISTAKES
     # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)  ## Works!
     # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!! MT FAV!!!!! 👍👍👍👍👍
-    llm = ChatOpenRouter(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!! Open router version of above *********
-    # llm = ChatOpenRouter(model="gpt-5.6-luna", temperature=0) ### Really good GPT model - Greatest VALUE FOR MONEY and FAST & CHEAP!!
-    # llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0) ### Really good GPT model - Greatest VALUE FOR MONEY and FAST & CHEAP!!
-    # llm = ChatOpenAI(model="gpt-5.6-luna", temperature=0, reasoning_effort="none") ### ????? seem to be having api issues and errors...'👎❌❌
+    # llm = ChatOpenRouter(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!! Open router version of above *********
+    llm = ChatOpenRouter(model="gpt-5.6-luna", temperature=0) ### Really good GPT model - Greatest VALUE FOR MONEY and FAST & CHEAP!!
+    # llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0) ### Really good  model - Greatest VALUE FOR MONEY and FAST & CHEAP!!
+    # llm = ChatOpenAI(model="gpt-5.6-luna", temperature=0, reasoning_effort="none") ### ????? seem to be having api issues and errors...Credits finished!!!'👎❌❌
     # llm = ChatOpenRouter(model="deepseek/deepseek-v4-flash", temperature=0)
     # llm = ChatOpenRouter(model="~deepseek/deepseek-v4-flash-latest", temperature=0)  ## always redirects to latest deepseek flash model 
     # llm = ChatOpenRouter(model="openai/gpt-oss-120b", temperature=0)  ### SO FAR... REALLY GOOD!!! BEST  AND CHEAP....!!!  
+    # llm = ChatOpenRouter(model="z-ai/glm-5.3-flash", temperature=0)  ### GOOOOOOD --- Abit slow...BUT GOOD
     # llm = ChatOpenAI(base_url="http://127.0.0.1:1234/v1", api_key="lm-studio", model="openai/gpt-oss-20b", temperature=0) ## Using model LOCALLY in lmstudio.. GOOD, FAST!!!
 
     system_prompt = system_prompt = """
@@ -517,22 +540,34 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
 
     with st.chat_message("assistant"):
         normalized_query = prompt.lower().strip()
+        handler = SQLCaptureHandler()
         with st.spinner("Thinking... please wait ⏳"):
             try:
-                response = st.session_state.agent_executor.invoke({"input": normalized_query})
+                response = st.session_state.agent_executor.invoke(
+                    {"input": normalized_query},
+                    config={"callbacks": [handler]},
+                )
                 answer = response["output"]
             except Exception as e:
                 answer = f"⚠️ Something went wrong processing your request: {str(e)}"
         st.markdown(answer)
+
+        # Show the SQL queries the agent generated to answer this question
+        if handler.queries:
+            label = f"🔍 SQL used to generate this answer ({len(handler.queries)} query"
+            label += "s)" if len(handler.queries) > 1 else ")"
+            with st.expander(label):
+                for sql in handler.queries:
+                    st.code(sql, language="sql")
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 
 # ### Questions
 
-# ###  how many tickets have a title containing "VPN" ?  ✅
-# ###  how many tickets have a title containing "vpn" in the first quarter of 2026?  ✅
-# ###  how many tickets have a title containing "vpn" in january of 2026?  ✅  ?????
+# ###  how many tickets have a title containing "VPN" ?  ✅ ans = 271
+# ###  how many tickets have a title containing "vpn" in the first quarter of 2026?  ✅  Ans = 5
+# ###  how many tickets have a title containing "vpn" in january of 2026?  ✅  ?????  Ans = 1
 # ###  how many tickts do we have? ✅
 # ###  how many queues do we have? ✅
 # ###  how many tickets did we have in the first quarter of 2026? ✅
@@ -545,11 +580,11 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
 
 # ### how many tickets in the support queue did we have in the first quarter of 2026?
 
-# ### how many tickets are still open in each queue? ✅
-# ### how many tickets have a status of pending in the support queue?  ✅``
+# ### how many tickets are not closed in each queue? ✅
+# ### how many tickets have a status of pending in the support queue?  ✅
 # ## how many tickets do we have between april 1st 2026 and june 30th 2026? Break it down by queues.
 # ## how many tickets did the owner "kabir, amin" get in 2026?
-# ## how many tickets do we have between april 1st 2026 and june 30th 2026? Break it down by queues. From the requisition queue, count only tickets with [\*r\*] in the title.
+# ## how many tickets do we have between april 1st 2026 and june 30th 2026? Break it down by queues.  ✅ Ans = [1,324] [854]
 
-# ## how many tickets did the owner containing "kabir", get in 2026?
-
+# ## how many tickets did the owner containing "kabir", get in 2026?  ✅ Ans = 66
+ 

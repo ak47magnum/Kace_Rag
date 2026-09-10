@@ -1,15 +1,16 @@
 {
   "version": "0.2.0",
   "configurations": [
+    
     {
-      "name": "Streamlit: main_tickets_multiple_3",
+      "name": "Streamlit: _delete_after_use.py",
       "type": "debugpy",
       "request": "launch",
       "module": "streamlit",
       // IMPORTANT: "args" here OVERRIDES --module. Set it to "[]" for bare python.
       "args": [
         "run",
-        "d:/100projects/zz_2026_Recap/01_Kace_Langchain_Rag/main_tickets_multiple_3.py",
+        "d:/100projects/zz_2026_Recap/01_Kace_Langchain_Rag/_delete_after_use.py",
         "--server.port",
         "8501",
         "--server.headless",
