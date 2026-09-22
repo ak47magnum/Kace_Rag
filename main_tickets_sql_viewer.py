@@ -420,10 +420,11 @@ def get_session_db_and_agent():
     # llm = ChatOllama(model="gemma4:e4b", temperature=0) ## Really good local model... But still some mistakes if query is complex ###******************************************
     # llm = ChatOllama(model="gemma4:e2b", temperature=0) ## NOT SO GOOD. GOT MISTAKES
     # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)  ## Works!
-    # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!! MT FAV!!!!! 👍👍👍👍👍
+    # llm = ChatOpenAI(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!! MT FAV!!!!! 
     # llm = ChatOpenRouter(model="gpt-5.4-mini", temperature=0) ### Really good GPT model - BEST VALUE FOR MONEY and FAST!! Open router version of above *********
-    llm = ChatOpenRouter(model="gpt-5.6-luna", temperature=0) ### Really good GPT model - Greatest VALUE FOR MONEY and FAST & CHEAP!!
-    # llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0) ### Really good  model - Greatest VALUE FOR MONEY and FAST & CHEAP!!
+    # llm = ChatOpenRouter(model="gpt-5.6-luna", temperature=0) ### Really good GPT model - GOOD VALUE FOR MONEY and FAST & CHEAP!! 👍👍👍👍👍
+    # llm = ChatOpenRouter(model="google/gemini-3.7-flash", temperature=0) ### Really good  model - Greatest VALUE FOR MONEY and FAST & CHEAP!!👍👍👍👍👍
+    llm = ChatOpenRouter(model="meta/muse-spark-1.2-contributor", temperature=0) ### LIKE IT !!! ### SO FAR... REALLY GOOD!!! AND CHEAP....!!!  👍👍👍👍👍
     # llm = ChatOpenAI(model="gpt-5.6-luna", temperature=0, reasoning_effort="none") ### ????? seem to be having api issues and errors...Credits finished!!!'👎❌❌
     # llm = ChatOpenRouter(model="deepseek/deepseek-v4-flash", temperature=0)
     # llm = ChatOpenRouter(model="~deepseek/deepseek-v4-flash-latest", temperature=0)  ## always redirects to latest deepseek flash model 
@@ -431,7 +432,7 @@ def get_session_db_and_agent():
     # llm = ChatOpenRouter(model="z-ai/glm-5.3-flash", temperature=0)  ### GOOOOOOD --- Abit slow...BUT GOOD
     # llm = ChatOpenAI(base_url="http://127.0.0.1:1234/v1", api_key="lm-studio", model="openai/gpt-oss-20b", temperature=0) ## Using model LOCALLY in lmstudio.. GOOD, FAST!!!
 
-    system_prompt = system_prompt = """
+    system_prompt = """
     You are an expert KACE SMA data analyst and a friendly assistant.
     The database table is named 'kace_tickets' and is fully normalized to lowercase.
     All string-based values and column names are in lowercase with underscores.
@@ -578,7 +579,7 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
 # ###  how many tickets did we have in each queue , in january 2026? ✅
 # ###  what are the available column to search in the queues?✅
 
-# ### how many tickets in the support queue did we have in the first quarter of 2026?
+# ### how many tickets in the support queue did we have in the first quarter of 2026? ✅ Ans = 1,719
 
 # ### how many tickets are not closed in each queue? ✅
 # ### how many tickets have a status of pending in the support queue?  ✅
