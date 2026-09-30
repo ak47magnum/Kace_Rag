@@ -333,6 +333,15 @@ def refresh_csv():
         df.to_csv(tmp_file, index=False)
         os.replace(tmp_file, CSV_FILE)
 
+
+        ######################## ADDED FOR TESTING REFRESH OF SQLITE DB ################
+        # File copy for manual testing — same normalized df the agent loads into memory
+        ###############################################################################
+        local_engine = create_engine("sqlite:///local_kace.db")
+        df.to_sql("kace_tickets", local_engine, index=False, if_exists="replace")
+        ###############################################################################
+        ###############################################################################
+
     finally:
         _csv_refresh_lock.release()
 
@@ -539,19 +548,39 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
     with st.chat_message("user"):
         st.markdown(prompt)
 
+
+    ## OLD SPINNER ########
+    # with st.chat_message("assistant"):
+    #     normalized_query = prompt.lower().strip()
+    #     handler = SQLCaptureHandler()
+    #     with st.spinner("Thinking... please wait ⏳"):
+    #         try:
+    #             response = st.session_state.agent_executor.invoke(
+    #                 {"input": normalized_query},
+    #                 config={"callbacks": [handler]},
+    #             )
+    #             answer = response["output"]
+    #         except Exception as e:
+    #             answer = f"⚠️ Something went wrong processing your request: {str(e)}"
+    #     st.markdown(answer)
+  
+    ## NEW SPINNER-More confident #########
     with st.chat_message("assistant"):
         normalized_query = prompt.lower().strip()
         handler = SQLCaptureHandler()
-        with st.spinner("Thinking... please wait ⏳"):
+        with st.status("🔍 Querying KACE ticket database... please wait ⏳", expanded=False) as status:
             try:
                 response = st.session_state.agent_executor.invoke(
                     {"input": normalized_query},
                     config={"callbacks": [handler]},
                 )
                 answer = response["output"]
+                status.update(label="✅ Results from KACE ticket database", state="complete")
             except Exception as e:
                 answer = f"⚠️ Something went wrong processing your request: {str(e)}"
+                status.update(label="⚠️ Query failed", state="error")
         st.markdown(answer)
+
 
         # Show the SQL queries the agent generated to answer this question
         if handler.queries:
@@ -584,8 +613,15 @@ if prompt := st.chat_input("Ask about tickets (e.g., How many open tickets are i
 # ### how many tickets are not closed in each queue? ✅
 # ### how many tickets have a status of pending in the support queue?  ✅
 # ## how many tickets do we have between april 1st 2026 and june 30th 2026? Break it down by queues.
-# ## how many tickets did the owner "kabir, amin" get in 2026?
+
 # ## how many tickets do we have between april 1st 2026 and june 30th 2026? Break it down by queues.  ✅ Ans = [1,324] [854]
 
 # ## how many tickets did the owner containing "kabir", get in 2026?  ✅ Ans = 66
+
+# ## how many tickets are there in the first three quarters of 2026 in the support queue?
  
+# ## show me a list of all the owners in the support queue
+
+# ## how many tickets are there in the current month in the support queue?
+
+# ## how many tickets are there in the first three quarters of 2026 in the support queue? i want tickets only belonging to the owner kabir, amin.
